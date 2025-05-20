@@ -67,6 +67,7 @@ namespace udit::engine
 
             return UNDEFINED;
         }
+        
         static Key_Code key_code_from_scancode(int scancode)
         {
             switch (scancode)
@@ -122,7 +123,7 @@ namespace udit::engine
     {
         SDL_Event event;
 
-        // Parte 1: Eventos principales en el hilo principal
+        // Mantenemos el Quit en el hilo principal
         while (SDL_PollEvent(&event))
         {
             if (event.type == SDL_EVENT_QUIT)
@@ -131,14 +132,13 @@ namespace udit::engine
             }
         }
 
-        // Parte 2: Captura constante de teclas en paralelo (con ThreadPool)
+        
         static ThreadPool pool;
         static std::mutex keyboard_mutex;
 
         int num_keys = 0;
         const bool* keyboard_state = SDL_GetKeyboardState(&num_keys);
 
-        // Crear copia del estado actual
         std::vector<bool> current_state(keyboard_state, keyboard_state + num_keys);
 
         pool.submit([this, current_state = std::move(current_state)]()

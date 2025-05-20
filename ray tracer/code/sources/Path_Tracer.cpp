@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <locale>
+#include <execution>
+#include <numeric>
 
 #include <raytracer/Intersectable.hpp>
 #include <raytracer/Intersection.hpp>
@@ -23,14 +25,26 @@ namespace udit::raytracer
         auto & spatial_data_structure =  frame_data.space;
         auto   number_of_iterations   =  frame_data.number_of_iterations;
 
-        for (unsigned index = 0, end = primary_rays.size (); index < end; ++index)
+        std::vector<size_t> indices(primary_rays.size());
+        std::iota(indices.begin(), indices.end(), 0);
+
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index)
+            {
+                for (unsigned iterations = number_of_iterations;iterations > 0; --iterations)
+                {
+                    framebuffer[index] += trace_ray(primary_rays[index], spatial_data_structure, sky_environment, 0);
+                    ray_counters[index] += 1;
+                }
+            });
+        
+        /*for (unsigned index = 0, end = primary_rays.size (); index < end; ++index)
         {
             for (unsigned iterations = number_of_iterations; iterations > 0; --iterations)
             {
                 framebuffer [index] += trace_ray (primary_rays[index], spatial_data_structure, sky_environment, 0);
                 ray_counters[index] += 1;
             }
-        }
+        }*/
     }
 
     void Path_Tracer::end_benchmark_stage (Frame_Data & )
