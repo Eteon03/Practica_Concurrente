@@ -8,6 +8,7 @@
 #include <raytracer/Pinhole_Camera.hpp>
 
 #include <iostream>
+#include <execution>
 using namespace std;
 
 namespace udit::raytracer
@@ -35,23 +36,30 @@ namespace udit::raytracer
         Vector3 focal_point        = transform_matrix * Vector4(0, 0, -focal_length, 1);
         Vector3 right_direction    = transform_matrix * Vector4(half_sensor_size.x, 0, 0, 0);
         Vector3 up_direction       = transform_matrix * Vector4(0, half_sensor_size.y, 0, 0);
-        Vector3 sensor_bottom_left = sensor_center - (right_direction + up_direction);
+        //La imagen se creaba invertida, asi que he tenido que invertir los + y - de las direcciones
+        Vector3 sensor_bottom_left = sensor_center + (right_direction - up_direction);
 
         Vector3 horizontal_step    = right_direction / half_sensor_resolution.x;
+        //Tambien aqui
+        horizontal_step = -horizontal_step;
+
         Vector3 vertical_step      = up_direction    / half_sensor_resolution.y;
 
-        Vector3 scanline_start     = sensor_bottom_left;
-        auto    buffer_offset      = buffer_width * buffer_height;
+        size_t total_pixels = buffer_width * buffer_height;
+        std::vector<size_t> indices(total_pixels);
+        std::iota(indices.begin(), indices.end(), 0);
 
-        for (auto row = buffer_height; row > 0; --row, scanline_start += vertical_step)
-        {
-            Vector3 pixel = scanline_start;
-
-            for (auto column = buffer_width; column > 0; --column, pixel += horizontal_step)
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index)
             {
-                primary_rays[--buffer_offset] = Ray{ pixel, focal_point - pixel };
-            }
-        }
+                int x = static_cast<int>(index % buffer_width);
+                int y = static_cast<int>(index / buffer_width);
+
+                //Y tambien aqui
+                y = buffer_height - 1 - y;
+
+                Vector3 pixel_position = sensor_bottom_left + horizontal_step * static_cast<float>(x) + vertical_step * static_cast<float>(y);
+                primary_rays[index] = Ray{ pixel_position,focal_point - pixel_position };
+            });
     }
 
 }
