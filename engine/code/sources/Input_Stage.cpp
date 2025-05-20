@@ -7,8 +7,7 @@
 
 #include <engine/Input_Stage.hpp>
 #include <engine/Scene.hpp>
-#include <engine/Thread_Pool.hpp>
-#include <mutex>
+
 #include <SDL3/SDL.h>
 
 namespace udit::engine
@@ -66,23 +65,6 @@ namespace udit::engine
             return UNDEFINED;
         }
 
-        static Key_Code key_code_from_scancode(int scancode)
-        {
-            switch (scancode)
-            {
-            case SDL_SCANCODE_W: return KEY_W;
-            case SDL_SCANCODE_A: return KEY_A;
-            case SDL_SCANCODE_S: return KEY_S;
-            case SDL_SCANCODE_D: return KEY_D;
-            case SDL_SCANCODE_UP: return KEY_UP;
-            case SDL_SCANCODE_DOWN: return KEY_DOWN;
-            case SDL_SCANCODE_LEFT: return KEY_LEFT;
-            case SDL_SCANCODE_RIGHT: return KEY_RIGHT;
-            }
-
-            return UNDEFINED;
-        }
-
     }
 
     template<>
@@ -123,63 +105,43 @@ namespace udit::engine
 
         while (SDL_PollEvent(&event))
         {
-            if (event.type == SDL_EVENT_QUIT)
+            switch (event.type)
+            {
+            case SDL_EVENT_KEY_DOWN:
+            {
+                scene.get_input_event_queue().push
+                (
+                    key_events.push
+                    (
+                        internal::key_code_from_sdl_key_code(event.key.key),
+                        Key_Event::PRESSED
+                    )
+                );
+
+                break;
+            }
+
+            case SDL_EVENT_KEY_UP:
+            {
+                scene.get_input_event_queue().push
+                (
+                    key_events.push
+                    (
+                        internal::key_code_from_sdl_key_code(event.key.key),
+                        Key_Event::RELEASED
+                    )
+                );
+
+                break;
+            }
+
+            case SDL_EVENT_QUIT:
             {
                 scene.stop();
+                break;
+            }
             }
         }
-
-        static ThreadPool pool;
-        static std::mutex queue_mutex;
-
-        static std::vector<bool> previous_state;
-        int num_keys = 0;
-        const bool* current_state = SDL_GetKeyboardState(&num_keys);
-
-        // Inicializamos el estado anterior la primera vez
-        if (previous_state.size()!=static_cast<size_t>(num_keys))
-        {
-            previous_state.resize(num_keys, false);
-        }
-
-        // Copiamos el estado actual a un buffer local para pasarlo al thread pool
-        std::vector<bool> current_state_copy(current_state, current_state + num_keys);
-
-        pool.submit([this, current_state_copy, num_keys]()
-            {
-                static std::mutex internal_mutex;
-                static std::vector<bool> local_previous_state;
-
-                std::lock_guard<std::mutex> lock(internal_mutex);
-
-                if (local_previous_state.size()!=current_state_copy.size())
-                {
-                    local_previous_state.resize(current_state_copy.size(), false);
-                }
-
-                for (size_t i = 0; i < current_state_copy.size(); i++)
-                {
-                    const bool was_down = local_previous_state[i];
-                    const bool is_down = current_state_copy[i];
-
-                    if (!was_down && is_down)
-                    {
-                        // PRESSED
-                        scene.get_input_event_queue().push(
-                            key_events.push(static_cast<Key_Code>(i), Key_Event::PRESSED)
-                        );
-                    }
-                    else if (was_down && !is_down)
-                    {
-                        // RELEASED
-                        scene.get_input_event_queue().push(
-                            key_events.push(static_cast<Key_Code>(i), Key_Event::RELEASED)
-                        );
-                    }
-                }
-
-                local_previous_state = current_state_copy;
-            });
     }
 
     void Input_Stage::cleanup()

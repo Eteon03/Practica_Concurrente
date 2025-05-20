@@ -173,7 +173,8 @@ namespace udit::engine
             );
         }
     }
-
+    
+    //Transformaciones modificadas para concurrencia
     void Path_Tracing::Stage::update_component_transforms ()
     {
         std::for_each(std::execution::par, subsystem->camera_components.begin(), subsystem->camera_components.end(),
