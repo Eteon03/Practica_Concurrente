@@ -7,8 +7,11 @@
 
 #include <engine/Input_Stage.hpp>
 #include <engine/Scene.hpp>
+#include <engine/Thread_Pool.hpp>
+#include <mutex>
 
 #include <SDL3/SDL.h>
+#include <iostream>
 
 namespace udit::engine
 {
@@ -64,8 +67,24 @@ namespace udit::engine
 
             return UNDEFINED;
         }
+        static Key_Code key_code_from_scancode(int scancode)
+        {
+            switch (scancode)
+            {
+            case SDL_SCANCODE_W: return KEY_W;
+            case SDL_SCANCODE_A: return KEY_A;
+            case SDL_SCANCODE_S: return KEY_S;
+            case SDL_SCANCODE_D: return KEY_D;
+            case SDL_SCANCODE_UP: return KEY_UP;
+            case SDL_SCANCODE_DOWN: return KEY_DOWN;
+            case SDL_SCANCODE_LEFT: return KEY_LEFT;
+            case SDL_SCANCODE_RIGHT: return KEY_RIGHT;
+            default: return UNDEFINED;
+            }
+        }
 
     }
+
 
     template<>
     Stage::Unique_Ptr Stage::create< Input_Stage >(Scene& scene)
@@ -103,46 +122,54 @@ namespace udit::engine
     {
         SDL_Event event;
 
+        // Parte 1: Eventos principales en el hilo principal
         while (SDL_PollEvent(&event))
         {
-            switch (event.type)
-            {
-            case SDL_EVENT_KEY_DOWN:
-            {
-                scene.get_input_event_queue().push
-                (
-                    key_events.push
-                    (
-                        internal::key_code_from_sdl_key_code(event.key.key),
-                        Key_Event::PRESSED
-                    )
-                );
-
-                break;
-            }
-
-            case SDL_EVENT_KEY_UP:
-            {
-                scene.get_input_event_queue().push
-                (
-                    key_events.push
-                    (
-                        internal::key_code_from_sdl_key_code(event.key.key),
-                        Key_Event::RELEASED
-                    )
-                );
-
-                break;
-            }
-
-            case SDL_EVENT_QUIT:
+            if (event.type == SDL_EVENT_QUIT)
             {
                 scene.stop();
-                break;
-            }
             }
         }
+
+        // Parte 2: Captura constante de teclas en paralelo (con ThreadPool)
+        static ThreadPool pool;
+        static std::mutex keyboard_mutex;
+
+        int num_keys = 0;
+        const bool* keyboard_state = SDL_GetKeyboardState(&num_keys);
+
+        // Crear copia del estado actual
+        std::vector<bool> current_state(keyboard_state, keyboard_state + num_keys);
+
+        pool.submit([this, current_state = std::move(current_state)]()
+            {
+                static std::vector<bool> previous_state(current_state.size(), false);
+                std::lock_guard<std::mutex> lock(keyboard_mutex);
+
+                for (size_t i = 0; i < current_state.size(); ++i)
+                {
+                    bool was_down = previous_state[i];
+                    bool is_down = current_state[i];
+
+                    if (was_down != is_down)
+                    {
+                        Key_Code key = internal::key_code_from_scancode(static_cast<int>(i));
+                        std::cout << "KEY PRESSED: " << key << std::endl;
+                        if (key != UNDEFINED)
+                        {
+                            Key_Event::State state = is_down ? Key_Event::PRESSED : Key_Event::RELEASED;
+
+                            scene.get_input_event_queue().push(
+                                key_events.push(key, state)
+                            );
+                        }
+                    }
+                }
+
+                previous_state = current_state;
+            });
     }
+
 
     void Input_Stage::cleanup()
     {
