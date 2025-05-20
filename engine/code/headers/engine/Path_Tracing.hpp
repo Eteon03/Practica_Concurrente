@@ -8,6 +8,8 @@
 #pragma once
 
 #include <memory>
+#include <thread>
+#include <atomic>
 
 #include <engine/Entity.hpp>
 #include <engine/Stage.hpp>
@@ -41,13 +43,19 @@ namespace udit::engine
             {
                 subsystem = nullptr;
             }
-
+            Stage(const Stage&) = delete;
+            Stage& operator=(const Stage&) = delete;
             void prepare ()      override;
             void compute (float) override;
+            void cleanup()override;
+
 
         private:
 
             void update_component_transforms ();
+            std::thread framebuffer_thread;
+            std::atomic<bool> running;
+            std::mutex framebuffer_mutex;
         };
 
         friend class Stage;

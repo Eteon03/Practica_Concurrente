@@ -17,6 +17,9 @@
 #include <raytracer/Skydome.hpp>
 #include <execution>
 #include <algorithm>
+#include <mutex>
+#include <atomic>
+#include <chrono>
 
 namespace udit::engine
 {
@@ -145,6 +148,30 @@ namespace udit::engine
     void Path_Tracing::Stage::prepare ()
     {
         subsystem = scene.get_subsystem< Path_Tracing > ();
+        running = true;
+
+        auto& window = scene.get_window();
+        
+        framebuffer_thread = std::thread([this, &window]()
+            {
+                using namespace std::chrono;
+
+                while (running)
+                {
+                    auto start = steady_clock::now();
+
+                    {
+                        std::lock_guard<std::mutex> lock(framebuffer_mutex);
+
+                        auto width = window.get_width();
+                        auto height = window.get_height();
+
+                        window.blit_rgb_float(subsystem->path_tracer.get_snapshot().data(), width, height);
+
+                    }
+                    std::this_thread::sleep_until(start + milliseconds(40));
+                }
+            });
     }
 
     void Path_Tracing::Stage::compute (float)
@@ -157,21 +184,19 @@ namespace udit::engine
 
             update_component_transforms ();
 
-            subsystem->path_tracer.trace
-            (
-                subsystem->path_tracer_space,
-                viewport_width,
-                viewport_height,
-                subsystem->rays_per_pixel
-            );
+            {
+                std::lock_guard<std::mutex>lock(framebuffer_mutex);
 
-            window.blit_rgb_float
-            (
-                subsystem->path_tracer.get_snapshot ().data (),
-                viewport_width,
-                viewport_height
-            );
+                subsystem ->path_tracer.trace(subsystem->path_tracer_space, viewport_width, viewport_height, subsystem->rays_per_pixel);
+            }
         }
+    }
+    void Path_Tracing::Stage::cleanup()
+    {
+        running = false;
+
+        if (framebuffer_thread.joinable())
+            framebuffer_thread.join();
     }
     
     //Transformaciones modificadas para concurrencia
