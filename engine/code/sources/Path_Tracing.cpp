@@ -153,6 +153,7 @@ namespace udit::engine
 
         auto& window = scene.get_window();
         
+        // Se lanza un hilo secundario que actualizará la imagen renderizada cada 40ms (25 FPS)
         framebuffer_thread = std::thread([this, &window]()
             {
                 using namespace std::chrono;
@@ -167,6 +168,7 @@ namespace udit::engine
                         int width, height;
 
                         {
+                            // Se protege el acceso a los datos del framebuffer con mutex
                             std::lock_guard<std::mutex> lock(framebuffer_mutex);
 
                             snapshot_data = reinterpret_cast<const float*>(subsystem->path_tracer.get_snapshot().data());
@@ -180,7 +182,7 @@ namespace udit::engine
                             window.blit_rgb_float(snapshot_data, width, height);
                         }
                     }
-
+                    //Espera activa para mantener una frecuencia de actualización de 25 FPS
                     std::this_thread::sleep_until(start + milliseconds(40));
                 }
             });
@@ -194,20 +196,22 @@ namespace udit::engine
             auto   viewport_width  = window.get_width  ();
             auto   viewport_height = window.get_height ();
 
-            update_component_transforms ();
+            update_component_transforms ();// Se actualizan las transformaciones de los modelos y cámaras
 
             {
+                // Se traza la imagen completa y se marca como lista para mostrar
                 subsystem ->path_tracer.trace(subsystem->path_tracer_space, viewport_width, viewport_height, subsystem->rays_per_pixel);
+                // Se notifica al hilo de que ya hay imagen nueva lista
                 framebuffer_ready = true;
             }
         }
     }
     void Path_Tracing::Stage::cleanup()
     {
-        running = false;
+        running = false; // Se indica al hilo que debe detenerse
 
         if (framebuffer_thread.joinable())
-            framebuffer_thread.join();
+            framebuffer_thread.join();      // Esperamos a que termine correctamente
     }
     
     //Transformaciones modificadas para concurrencia

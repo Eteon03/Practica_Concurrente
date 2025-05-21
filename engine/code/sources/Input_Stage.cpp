@@ -19,7 +19,7 @@ namespace udit::engine
     namespace internal
     {
 
-        static Key_Code key_code_from_sdl_key_code(SDL_Keycode sdl_key_code)
+        /*static Key_Code key_code_from_sdl_key_code(SDL_Keycode sdl_key_code)
         {
             switch (sdl_key_code)
             {
@@ -66,7 +66,8 @@ namespace udit::engine
             }
 
             return UNDEFINED;
-        }
+        }*/
+
         //Traduce SDL_Scancode (estado del teclado por frame) a enum Key_Code
         static Key_Code key_code_from_scancode(int scancode)
         {

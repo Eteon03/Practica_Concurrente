@@ -67,7 +67,7 @@ namespace udit::raytracer
                 Vector3 pixel_position = sensor_bottom_left + horizontal_step * static_cast<float>(x) + vertical_step * static_cast<float>(y);
 
                 //Se crea el rayo desde el pixel hasta el punto focal
-                primary_rays[index] = Ray{ pixel_position,focal_point - pixel_position };
+                primary_rays[(unsigned int)index] = Ray{ pixel_position,focal_point - pixel_position };
             });
     }
 

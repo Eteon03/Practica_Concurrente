@@ -25,15 +25,21 @@ namespace udit::raytracer
         auto & spatial_data_structure =  frame_data.space;
         auto   number_of_iterations   =  frame_data.number_of_iterations;
 
+        // Creamos un vector de índices que representa cada píxel/rayo
         std::vector<size_t> indices(primary_rays.size());
-        std::iota(indices.begin(), indices.end(), 0);
+        std::iota(indices.begin(), indices.end(), 0); // Rellenamos con 0, 1, 2, ...
 
+        // Procesamos todos los píxeles de forma paralela con ejecución en paralelo
         std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index)
             {
+                // Para cada rayo, lanzamos 'number_of_iterations' muestras (acumuladas)
                 for (unsigned iterations = number_of_iterations;iterations > 0; --iterations)
                 {
-                    framebuffer[index] += trace_ray(primary_rays[index], spatial_data_structure, sky_environment, 0);
-                    ray_counters[index] += 1;
+                    // Trazamos el rayo primario y acumulamos el color resultante
+                    framebuffer[(unsigned int)index] += trace_ray(primary_rays[(unsigned int)index], spatial_data_structure, sky_environment, 0);
+
+                    // Contamos el número de rayos emitidos por píxel (para promediar después)
+                    ray_counters[(unsigned int)index] += 1;
                 }
             });
         
@@ -93,7 +99,7 @@ namespace udit::raytracer
             return Color(0, 0, 0);
         }
         else
-            return sky_environment.sample (normalize (ray.direction));
+            return sky_environment.sample (udit::raytracer::normalize (ray.direction));
     }
 
 }
