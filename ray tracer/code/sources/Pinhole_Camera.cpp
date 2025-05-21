@@ -8,7 +8,7 @@
 #include <raytracer/Pinhole_Camera.hpp>
 
 #include <iostream>
-#include <execution>
+#include <execution> //Necesario para Execution par
 using namespace std;
 
 namespace udit::raytracer
@@ -16,6 +16,7 @@ namespace udit::raytracer
 
     void Pinhole_Camera::calculate (Buffer< Ray > & primary_rays)
     {
+        //Dimensiones del buffer de salida
         auto buffer_width  = primary_rays.get_width  ();
         auto buffer_height = primary_rays.get_height ();
 
@@ -31,11 +32,13 @@ namespace udit::raytracer
             0.5f * get_sensor_width () * half_sensor_resolution.y / half_sensor_resolution.x
         );
 
+        //Transformaciones espaciales de la camara
         auto  & transform_matrix   = transform.get_matrix   ();
         Vector3 sensor_center      = transform.get_position ();
         Vector3 focal_point        = transform_matrix * Vector4(0, 0, -focal_length, 1);
         Vector3 right_direction    = transform_matrix * Vector4(half_sensor_size.x, 0, 0, 0);
         Vector3 up_direction       = transform_matrix * Vector4(0, half_sensor_size.y, 0, 0);
+
         //La imagen se creaba invertida, asi que he tenido que invertir los + y - de las direcciones
         Vector3 sensor_bottom_left = sensor_center + (right_direction - up_direction);
 
@@ -45,19 +48,25 @@ namespace udit::raytracer
 
         Vector3 vertical_step      = up_direction    / half_sensor_resolution.y;
 
+        //Se prepara un vector de undices
         size_t total_pixels = buffer_width * buffer_height;
         std::vector<size_t> indices(total_pixels);
         std::iota(indices.begin(), indices.end(), 0);
 
+        //Calculamos cada rayo de forma paralela (uno por pixel)
         std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index)
             {
+                //Se convierte el indice lineal a coordenadas 2D
                 int x = static_cast<int>(index % buffer_width);
                 int y = static_cast<int>(index / buffer_width);
 
-                //Y tambien aqui
+                //Y tambien aqui he tenido que invertir la vertical
                 y = buffer_height - 1 - y;
 
+                //Se calcula la posicion del pixel sobre el sensor
                 Vector3 pixel_position = sensor_bottom_left + horizontal_step * static_cast<float>(x) + vertical_step * static_cast<float>(y);
+
+                //Se crea el rayo desde el pixel hasta el punto focal
                 primary_rays[index] = Ray{ pixel_position,focal_point - pixel_position };
             });
     }
