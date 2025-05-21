@@ -160,15 +160,26 @@ namespace udit::engine
                 {
                     auto start = steady_clock::now();
 
+                    if (framebuffer_ready)
                     {
-                        std::lock_guard<std::mutex> lock(framebuffer_mutex);
+                        const float* snapshot_data = nullptr;
+                        int width, height;
 
-                        auto width = window.get_width();
-                        auto height = window.get_height();
+                        {
+                            std::lock_guard<std::mutex> lock(framebuffer_mutex);
 
-                        window.blit_rgb_float(subsystem->path_tracer.get_snapshot().data(), width, height);
+                            snapshot_data = reinterpret_cast<const float*>(subsystem->path_tracer.get_snapshot().data());
+                            width = window.get_width();
+                            height = window.get_height();
+                        }
 
+                        // No accedemos a la escena ni al path tracer dentro del lock
+                        if (snapshot_data)
+                        {
+                            window.blit_rgb_float(snapshot_data, width, height);
+                        }
                     }
+
                     std::this_thread::sleep_until(start + milliseconds(40));
                 }
             });
@@ -185,9 +196,8 @@ namespace udit::engine
             update_component_transforms ();
 
             {
-                std::lock_guard<std::mutex>lock(framebuffer_mutex);
-
                 subsystem ->path_tracer.trace(subsystem->path_tracer_space, viewport_width, viewport_height, subsystem->rays_per_pixel);
+                framebuffer_ready = true;
             }
         }
     }

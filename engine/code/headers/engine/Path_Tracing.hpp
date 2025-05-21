@@ -10,6 +10,7 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <mutex>
 
 #include <engine/Entity.hpp>
 #include <engine/Stage.hpp>
@@ -55,7 +56,9 @@ namespace udit::engine
             void update_component_transforms ();
             std::thread framebuffer_thread;
             std::atomic<bool> running;
+            std::atomic<bool> framebuffer_ready = false;
             std::mutex framebuffer_mutex;
+            
         };
 
         friend class Stage;
