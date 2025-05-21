@@ -26,7 +26,7 @@ namespace
 
     void load_camera (Scene & scene, std::mutex& mtx)
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::lock_guard<std::mutex> lock(mtx); //Protege el acceso concurrente a la escena
 
         auto & entity = scene.create_entity ();
 
@@ -40,7 +40,7 @@ namespace
 
     void load_ground (Scene & scene, std::mutex& mtx)
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::lock_guard<std::mutex> lock(mtx); //Protege el acceso concurrente a la escena
         auto & entity = scene.create_entity ();
 
         scene.create_component< Transform > (entity);
@@ -52,7 +52,7 @@ namespace
 
     void load_shape (Scene & scene, std::mutex& mtx)
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::lock_guard<std::mutex> lock(mtx); //Evita condiciones de carrera
 
         auto & entity = scene.create_entity ();
 
@@ -64,19 +64,26 @@ namespace
         model_component->add_sphere (Vector3{.5f, 0.f, -1.1f}, .15f, model_component->add_metallic_material (Path_Tracing::Color(.4f, .5f, .6f), 0.1f));
     }
 
+    //Funcion principal de carga. Ejecuta 3 tareas concurrentemente en el thread pool
     void load (Scene & scene)
     {
+        //Codigo previo:
         //load_camera (scene);
         //load_ground (scene);
         //load_shape  (scene);
 
+        //Instancia del thread pool
         ThreadPool pool;
+
+        //Se comparte el mutex para sincronizar el acceso a la escena
         std::mutex scene_mutex;
 
+        //Envio de tareas al thread pool para ejecutarlas en paralelo
         auto future_camera = pool.submit(load_camera, std::ref(scene), std::ref(scene_mutex));
         auto future_ground = pool.submit(load_ground, std::ref(scene), std::ref(scene_mutex));
         auto future_shape = pool.submit(load_shape, std::ref(scene), std::ref(scene_mutex));
 
+        //Se espera a que cada una de las tareas termine antes de continuar
         future_camera.get();
         future_ground.get();
         future_shape.get();

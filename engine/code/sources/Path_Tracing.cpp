@@ -15,8 +15,8 @@
 #include <raytracer/Plane.hpp>
 #include <raytracer/Sphere.hpp>
 #include <raytracer/Skydome.hpp>
-#include <execution>
-#include <algorithm>
+#include <execution>        //Para std::execution::par (concurrencia)
+#include <algorithm>        //Para std::for_each
 #include <mutex>
 #include <atomic>
 #include <chrono>
@@ -145,6 +145,7 @@ namespace udit::engine
         return model;
     }
 
+    //Lanza un hilo para actualizar el framebuffer a 25 fps
     void Path_Tracing::Stage::prepare ()
     {
         subsystem = scene.get_subsystem< Path_Tracing > ();
@@ -212,9 +213,11 @@ namespace udit::engine
     //Transformaciones modificadas para concurrencia
     void Path_Tracing::Stage::update_component_transforms ()
     {
-        std::for_each(std::execution::par, subsystem->camera_components.begin(), subsystem->camera_components.end(),
-            [this](auto & camera)
+        // Se aplican transformaciones de las cámaras usando paralelismo con ejecución en paralelo
+        std::for_each(std::execution::par, subsystem->camera_components.begin(), subsystem->camera_components.end(), //Ejecucion paralela /Inicio de rango de camaras/final de rango de camaras
+            [this](auto & camera)//Lamda por cada componente
             {
+                // Obtenemos la transformación asociada a la entidad de la cámara
                 auto transform = subsystem->scene.get_component< Transform >(camera.entity_id);
 
                 camera.instance->transform.set_position(transform->position);
@@ -222,7 +225,7 @@ namespace udit::engine
                 camera.instance->transform.set_scales  (transform->scales);
             });
         
-        std::for_each(std::execution::par, subsystem->model_components.begin(), subsystem->model_components.end(),
+        std::for_each(std::execution::par, subsystem->model_components.begin(), subsystem->model_components.end(),//Lo mismo que en camera
             [this](auto& model)
             {
                 auto transform = subsystem->scene.get_component< Transform >(model.entity_id);

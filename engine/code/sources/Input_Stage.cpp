@@ -67,7 +67,7 @@ namespace udit::engine
 
             return UNDEFINED;
         }
-        
+        //Traduce SDL_Scancode (estado del teclado por frame) a enum Key_Code
         static Key_Code key_code_from_scancode(int scancode)
         {
             switch (scancode)
@@ -119,6 +119,7 @@ namespace udit::engine
         return Stage::setup< Input_Stage >();
     }
 
+    //Funcion ejecutada cada frame para procesar la entrada
     void Input_Stage::compute(float)
     {
         SDL_Event event;
@@ -132,18 +133,26 @@ namespace udit::engine
             }
         }
 
-        
+        //Thread Pool compartido para procesamiento de entrada
         static ThreadPool pool;
+
+        //Mutex para proteger el estado del teclado (no critico aqui)
         static std::mutex keyboard_mutex;
 
+        //Se obtiene el estado actual del teclado
         int num_keys = 0;
         const bool* keyboard_state = SDL_GetKeyboardState(&num_keys);
 
+        //Copiamos el estado actual a un vector para evitar acceso fuera del hilo principal
         std::vector<bool> current_state(keyboard_state, keyboard_state + num_keys);
 
+        //Enviamos la comparacion de teclas a un hilo del thread pool
         pool.submit([this, current_state = std::move(current_state)]()
             {
+                //Estado anterior, unico por hilo
                 static std::vector<bool> previous_state(current_state.size(), false);
+
+                //Acceso sincronizado
                 std::lock_guard<std::mutex> lock(keyboard_mutex);
 
                 for (size_t i = 0; i < current_state.size(); ++i)
@@ -151,21 +160,25 @@ namespace udit::engine
                     bool was_down = previous_state[i];
                     bool is_down = current_state[i];
 
+                    //Se detectan cambios de estado
                     if (was_down != is_down)
                     {
+                        //Convertimos el scancode a Key_Code
                         Key_Code key = internal::key_code_from_scancode(static_cast<int>(i));
+                        
+                        //Comprobacion de tecla pulsada
                         std::cout << "KEY PRESSED: " << key << std::endl;
                         if (key != UNDEFINED)
                         {
+                            //Se determina si esta presionada o liberada
                             Key_Event::State state = is_down ? Key_Event::PRESSED : Key_Event::RELEASED;
 
-                            scene.get_input_event_queue().push(
-                                key_events.push(key, state)
-                            );
+                            //Se añade el evento a la cola de entrada
+                            scene.get_input_event_queue().push(key_events.push(key, state));
                         }
                     }
                 }
-
+                //Se guarda el estado actual como anterior para el siguiente frame
                 previous_state = current_state;
             });
     }
